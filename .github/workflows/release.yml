@@ -1,0 +1,137 @@
+name: Reusable Release
+
+on:
+  workflow_call:
+    inputs:
+      binary_name:
+        description: 'Name of the binary to build and distribute'
+        required: true
+        type: string
+      description:
+        description: 'Short description for the Homebrew formula'
+        required: true
+        type: string
+    secrets:
+      HOMEBREW_TAP_TOKEN:
+        required: true
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+          - os: macos-13
+            target: x86_64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify tag matches Cargo.toml version
+        run: |
+          CARGO_VERSION="v$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')"
+          if [ "$CARGO_VERSION" != "${{ github.ref_name }}" ]; then
+            echo "Tag ${{ github.ref_name }} does not match Cargo.toml version $CARGO_VERSION"
+            exit 1
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package
+        run: |
+          BINARY="${{ inputs.binary_name }}"
+          cd target/${{ matrix.target }}/release
+          tar czf "${BINARY}-${{ github.ref_name }}-${{ matrix.target }}.tar.gz" "${BINARY}"
+          shasum -a 256 "${BINARY}-${{ github.ref_name }}-${{ matrix.target }}.tar.gz" > "${BINARY}-${{ github.ref_name }}-${{ matrix.target }}.tar.gz.sha256"
+          mv "${BINARY}-${{ github.ref_name }}-${{ matrix.target }}.tar.gz"* "${GITHUB_WORKSPACE}/"
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ inputs.binary_name }}-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
+            ${{ inputs.binary_name }}-${{ github.ref_name }}-${{ matrix.target }}.tar.gz.sha256
+
+  update-homebrew:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download sha256 files
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download ${{ github.ref_name }} \
+            --repo ${{ github.repository }} \
+            --pattern "*.sha256"
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: cahyasetya/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
+        run: |
+          BINARY="${{ inputs.binary_name }}"
+          FORMULA_CLASS=$(echo "${BINARY}" | awk -F'-' '{for(i=1;i<=NF;i++) printf toupper(substr($i,1,1)) substr($i,2); print ""}')
+          VERSION="${{ github.ref_name }}"
+          VERSION_NUM="${VERSION#v}"
+          REPO="${{ github.repository }}"
+          DESC="${{ inputs.description }}"
+          MACOS_ARM=$(awk '{print $1}' "${BINARY}-${VERSION}-aarch64-apple-darwin.tar.gz.sha256")
+          MACOS_X86=$(awk '{print $1}' "${BINARY}-${VERSION}-x86_64-apple-darwin.tar.gz.sha256")
+          LINUX_X86=$(awk '{print $1}' "${BINARY}-${VERSION}-x86_64-unknown-linux-gnu.tar.gz.sha256")
+          cat > "homebrew-tap/Formula/${BINARY}.rb" << FORMULA
+          class ${FORMULA_CLASS} < Formula
+            desc "${DESC}"
+            homepage "https://github.com/${REPO}"
+            version "${VERSION_NUM}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/${REPO}/releases/download/${VERSION}/${BINARY}-${VERSION}-aarch64-apple-darwin.tar.gz"
+                sha256 "${MACOS_ARM}"
+              else
+                url "https://github.com/${REPO}/releases/download/${VERSION}/${BINARY}-${VERSION}-x86_64-apple-darwin.tar.gz"
+                sha256 "${MACOS_X86}"
+              end
+            end
+
+            on_linux do
+              url "https://github.com/${REPO}/releases/download/${VERSION}/${BINARY}-${VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+              sha256 "${LINUX_X86}"
+            end
+
+            def install
+              bin.install "${BINARY}"
+            end
+
+            test do
+              assert_path_exists bin/"${BINARY}"
+            end
+          end
+          FORMULA
+
+      - name: Commit and push
+        working-directory: homebrew-tap
+        run: |
+          BINARY="${{ inputs.binary_name }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "Formula/${BINARY}.rb"
+          git commit -m "Update ${BINARY} to ${{ github.ref_name }}"
+          git push
