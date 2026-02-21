@@ -1,22 +1,22 @@
 class Snip < Formula
   desc "Save and re-run shell commands with an interactive picker"
   homepage "https://github.com/cahyasetya/snip"
-  version "0.2.2"
+  version "0.3.0"
   license "MIT"
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/cahyasetya/snip/releases/download/v0.2.2/snip-v0.2.2-aarch64-macos.tar.gz"
-      sha256 "2fb31b1e04be78324beab099ecdb426a0bd006e0b2061961e93315a17320c743"
+      url "https://github.com/cahyasetya/snip/releases/download/v0.3.0/snip-v0.3.0-aarch64-macos.tar.gz"
+      sha256 "36564452839b38ddcbd87dff2e8e8da488df97f1e36779723f5ce314d8d1e989"
     else
-      url "https://github.com/cahyasetya/snip/releases/download/v0.2.2/snip-v0.2.2-x86_64-macos.tar.gz"
-      sha256 "6f837b2cd5da68fe6f5d3e0c6437a113b369bfba468ab5154c1dc33cba62b4c4"
+      url "https://github.com/cahyasetya/snip/releases/download/v0.3.0/snip-v0.3.0-x86_64-macos.tar.gz"
+      sha256 "7b33fa543e1ea4839f3ad38be974b6c9b238bf3db8915541c0d4f080f2a754bc"
     end
   end
 
   on_linux do
-    url "https://github.com/cahyasetya/snip/releases/download/v0.2.2/snip-v0.2.2-x86_64-linux.tar.gz"
-    sha256 "179a56a24977605e41bd34b72eb37db199ae6a900b1b32061f980305b6d196a5"
+    url "https://github.com/cahyasetya/snip/releases/download/v0.3.0/snip-v0.3.0-x86_64-linux.tar.gz"
+    sha256 "2bd50933c9bc28e380e602715e61c40c375385ed3d7f9a787837e01ade5cbfa3"
   end
 
   def install
