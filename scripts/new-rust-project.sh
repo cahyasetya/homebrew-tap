@@ -46,7 +46,7 @@ permissions:
 
 jobs:
   release:
-    uses: ${GITHUB_USER}/homebrew-tap/.github/workflows/release.yml@main
+    uses: ${GITHUB_USER}/homebrew-tap/.github/workflows/release.yml@master
     with:
       binary_name: ${BINARY_NAME}
       description: "${DESCRIPTION}"

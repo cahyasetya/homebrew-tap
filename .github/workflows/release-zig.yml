@@ -65,7 +65,7 @@ jobs:
 
   update-homebrew:
     needs: build
-    uses: cahyasetya/homebrew-tap/.github/workflows/update-homebrew.yml@main
+    uses: cahyasetya/homebrew-tap/.github/workflows/update-homebrew.yml@master
     with:
       binary_name: ${{ inputs.binary_name }}
       description: ${{ inputs.description }}
