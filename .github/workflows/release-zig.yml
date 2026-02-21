@@ -1,0 +1,73 @@
+name: Reusable Release (Zig)
+
+on:
+  workflow_call:
+    inputs:
+      binary_name:
+        description: 'Name of the binary to build and distribute'
+        required: true
+        type: string
+      description:
+        description: 'Short description for the Homebrew formula'
+        required: true
+        type: string
+    secrets:
+      HOMEBREW_TAP_TOKEN:
+        required: true
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-macos
+            runner: macos-latest
+          - target: x86_64-macos
+            runner: macos-latest
+          - target: aarch64-linux
+            runner: ubuntu-latest
+          - target: x86_64-linux
+            runner: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: latest
+
+      - name: Build
+        run: zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseFast
+
+      - name: Package
+        run: |
+          BINARY="${{ inputs.binary_name }}"
+          if [[ "${{ matrix.target }}" == *macos* ]]; then
+            codesign --force --deep --sign - "zig-out/bin/${BINARY}"
+          fi
+          tar czf "${BINARY}-${{ github.ref_name }}-${{ matrix.target }}.tar.gz" \
+            -C zig-out/bin "${BINARY}"
+          shasum -a 256 "${BINARY}-${{ github.ref_name }}-${{ matrix.target }}.tar.gz" \
+            > "${BINARY}-${{ github.ref_name }}-${{ matrix.target }}.tar.gz.sha256"
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ inputs.binary_name }}-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
+            ${{ inputs.binary_name }}-${{ github.ref_name }}-${{ matrix.target }}.tar.gz.sha256
+
+  update-homebrew:
+    needs: build
+    uses: cahyasetya/homebrew-tap/.github/workflows/update-homebrew.yml@main
+    with:
+      binary_name: ${{ inputs.binary_name }}
+      description: ${{ inputs.description }}
+      linux_arm: true
+    secrets: inherit

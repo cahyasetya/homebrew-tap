@@ -6,16 +6,16 @@ class Snip < Formula
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/cahyasetya/snip/releases/download/v0.1.0/snip-v0.1.0-aarch64-apple-darwin.tar.gz"
+      url "https://github.com/cahyasetya/snip/releases/download/v0.1.0/snip-v0.1.0-aarch64-macos.tar.gz"
       sha256 "PLACEHOLDER"
     else
-      url "https://github.com/cahyasetya/snip/releases/download/v0.1.0/snip-v0.1.0-x86_64-apple-darwin.tar.gz"
+      url "https://github.com/cahyasetya/snip/releases/download/v0.1.0/snip-v0.1.0-x86_64-macos.tar.gz"
       sha256 "PLACEHOLDER"
     end
   end
 
   on_linux do
-    url "https://github.com/cahyasetya/snip/releases/download/v0.1.0/snip-v0.1.0-x86_64-unknown-linux-gnu.tar.gz"
+    url "https://github.com/cahyasetya/snip/releases/download/v0.1.0/snip-v0.1.0-x86_64-linux.tar.gz"
     sha256 "PLACEHOLDER"
   end
 

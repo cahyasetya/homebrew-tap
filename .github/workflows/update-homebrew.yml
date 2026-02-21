@@ -1,0 +1,113 @@
+name: Update Homebrew Tap
+
+on:
+  workflow_call:
+    inputs:
+      binary_name:
+        description: 'Name of the binary'
+        required: true
+        type: string
+      description:
+        description: 'Short description for the Homebrew formula'
+        required: true
+        type: string
+      linux_arm:
+        description: 'Whether to include a Linux ARM64 URL in the formula'
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      HOMEBREW_TAP_TOKEN:
+        required: true
+
+jobs:
+  update-homebrew:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download sha256 files
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download ${{ github.ref_name }} \
+            --repo ${{ github.repository }} \
+            --pattern "*.sha256"
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: cahyasetya/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
+        run: |
+          BINARY="${{ inputs.binary_name }}"
+          FORMULA_CLASS=$(echo "${BINARY}" | awk -F'-' '{for(i=1;i<=NF;i++) printf toupper(substr($i,1,1)) substr($i,2); print ""}')
+          VERSION="${{ github.ref_name }}"
+          VERSION_NUM="${VERSION#v}"
+          REPO="${{ github.repository }}"
+          DESC="${{ inputs.description }}"
+          MACOS_ARM=$(awk '{print $1}' "${BINARY}-${VERSION}-aarch64-macos.tar.gz.sha256")
+          MACOS_X86=$(awk '{print $1}' "${BINARY}-${VERSION}-x86_64-macos.tar.gz.sha256")
+          LINUX_X86=$(awk '{print $1}' "${BINARY}-${VERSION}-x86_64-linux.tar.gz.sha256")
+          cat > "homebrew-tap/Formula/${BINARY}.rb" << HEADER
+          class ${FORMULA_CLASS} < Formula
+            desc "${DESC}"
+            homepage "https://github.com/${REPO}"
+            version "${VERSION_NUM}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/${REPO}/releases/download/${VERSION}/${BINARY}-${VERSION}-aarch64-macos.tar.gz"
+                sha256 "${MACOS_ARM}"
+              else
+                url "https://github.com/${REPO}/releases/download/${VERSION}/${BINARY}-${VERSION}-x86_64-macos.tar.gz"
+                sha256 "${MACOS_X86}"
+              end
+            end
+
+          HEADER
+          if [ "${{ inputs.linux_arm }}" = "true" ]; then
+            LINUX_ARM_SHA=$(awk '{print $1}' "${BINARY}-${VERSION}-aarch64-linux.tar.gz.sha256")
+            cat >> "homebrew-tap/Formula/${BINARY}.rb" << LINUX
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/${REPO}/releases/download/${VERSION}/${BINARY}-${VERSION}-aarch64-linux.tar.gz"
+                sha256 "${LINUX_ARM_SHA}"
+              else
+                url "https://github.com/${REPO}/releases/download/${VERSION}/${BINARY}-${VERSION}-x86_64-linux.tar.gz"
+                sha256 "${LINUX_X86}"
+              end
+            end
+
+          LINUX
+          else
+            cat >> "homebrew-tap/Formula/${BINARY}.rb" << LINUX
+            on_linux do
+              url "https://github.com/${REPO}/releases/download/${VERSION}/${BINARY}-${VERSION}-x86_64-linux.tar.gz"
+              sha256 "${LINUX_X86}"
+            end
+
+          LINUX
+          fi
+          cat >> "homebrew-tap/Formula/${BINARY}.rb" << FOOTER
+            def install
+              bin.install "${BINARY}"
+            end
+
+            test do
+              assert_path_exists bin/"${BINARY}"
+            end
+          end
+          FOOTER
+
+      - name: Commit and push
+        working-directory: homebrew-tap
+        run: |
+          BINARY="${{ inputs.binary_name }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "Formula/${BINARY}.rb"
+          git commit -m "Update ${BINARY} to ${{ github.ref_name }}"
+          git push
