@@ -1,7 +1,7 @@
 cask "hike" do
-  version "0.1.0"
-  sha256 "3e5928502c7c06cf0db483faa296a02ca1bc2b47697d1901f242c3ac892a3dcb"
-  url "https://github.com/cahyasetya/hike/releases/download/v0.1.0/hike_0.1.0_aarch64.dmg"
+  version "0.1.4"
+  sha256 "48a46ca113d3b6b6a1a6ea1ca02df8f4fdee7a666e6d8ff98394e79aa597be5b"
+  url "https://github.com/cahyasetya/hike/releases/download/v0.1.4/hike_0.1.4_aarch64.dmg"
   name "Hike"
   desc "A desktop API client"
   homepage "https://github.com/cahyasetya/hike"
